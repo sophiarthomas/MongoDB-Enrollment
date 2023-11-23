@@ -4,10 +4,12 @@ from pprint import pprint
 import getpass
 import certifi
 from menu_definitions import menu_main, add_menu, delete_menu, list_menu
-import DepartmentCollection
-import StudentCollection
-import DepartmentSchema
-import StudentSchema
+
+import Department
+import Course
+import Student
+import Section
+import Major
 
 
 def add(db):
@@ -48,42 +50,72 @@ def list_objects(db):
 
 #DEPARTMENT
 def add_department(db):
-    DepartmentCollection.add_department(db)
-
+    Department.add_department(db)
 def select_department(db):
-    DepartmentCollection.select_department(db)
-
+    Department.select_department(db)
 def delete_department(db):
-    DepartmentCollection.delete_department(db)
-
+    Department.delete_department(db)
 def list_department(db):
-    DepartmentCollection.list_department(db)
+    Department.list_department(db)
+
+
+#COURSE
+def add_course(db):
+    Course.add_course(db)
+def delete_course(db):
+    Course.delete_course(db)
+def list_course(db):
+    Course.list_course(db)
 
 
 #STUDENT
 def add_student(db):
-    StudentCollection.add_student(db)
-
+    Student.add_student(db)
 def select_student(db):
-    StudentCollection.select_student(db)
-
+    Student.select_student(db)
 def delete_student(db):
-    StudentCollection.delete_student(db)
-
+    Student.delete_student(db)
 def list_student(db):
-    StudentCollection.list_student(db)
+    Student.list_student(db)
+
+
+#SECTION
+def add_section(db):
+    Section.add_section(db)
+def select_section(db):
+    Section.select_section(db)
+def delete_section(db):
+    Section.delete_section(db)
+def list_section(db):
+    Section.list_section(db)
+
+
+#MAJOR
+def add_major(db):
+    Major.add_major(db)
+def select_major(db):
+    Major.select_major(db)
+def delete_major(db):
+    Major.delete_major(db)
+def list_major(db):
+    Major.list_major(db)
+
+#COURSE
+#STUDENT
+#ENROLLMENT
+#STUDENTMAJOR
+
 
 
 if __name__ == '__main__':
-    cluster = f"mongodb+srv://sophiathomas02:iCjcL1jUWQYLyCjR@cecs-323-fall-2023.ybsdndr.mongodb.net/?retryWrites=true&w=majority"
-    # password: str = getpass.getpass('Mongo DB password -->')
-    # username: str = input('Database username [CECS-323-Spring-2023-user] -->') or \
-    #                 "CECS-323-Spring-2023-user"
-    # project: str = input('Mongo project name [cecs-323-spring-2023] -->') or \
-    #                "CECS-323-Spring-2023"
-    # hash_name: str = input('7-character database hash [puxnikb] -->') or "puxnikb"
-    # cluster = f"mongodb+srv://{username}:{password}@{project}.{hash_name}.mongodb.net/?retryWrites=true&w=majority"
-    # print(f"Cluster: mongodb+srv://{username}:********@{project}.{hash_name}.mongodb.net/?retryWrites=true&w=majority")
+    password: str = getpass.getpass('Mongo DB password -->')
+    username: str = input('Database username [CECS-323-Spring-2023-user] -->') or \
+                    "CECS-323-Spring-2023-user"
+    project: str = input('Mongo project name [cecs-323-spring-2023] -->') or \
+                   "CECS-323-Spring-2023"
+    hash_name: str = input('7-character database hash [puxnikb] -->') or "puxnikb"
+    cluster = f"mongodb+srv://{username}:{password}@{project}.{hash_name}.mongodb.net/?retryWrites=true&w=majority"
+    print(f"Cluster: mongodb+srv://{username}:********@{project}.{hash_name}.mongodb.net/?retryWrites=true&w=majority")
     client = MongoClient(cluster, tlsCAFile=certifi.where())
     # As a test that the connection worked, print out the database names.
     print(client.list_database_names())
@@ -92,70 +124,12 @@ if __name__ == '__main__':
     # Print off the collections that we have available to us, again more of a test than anything.
     print(db.list_collection_names())
 
-    # Student is our students collection within this database.
-    # Merely referencing this collection will create it, although it won't show up in Atlas until
-    # We insert our first document into this collection.
-    students = db["students"]
-    try:
-        students = db.create_collection("students", **StudentSchema.student_validator)
-    except Exception as e:
-        pass
-    student_count = students.count_documents({})
-    print(f"Students in the collection so far: {student_count}")
 
-
-    departments = db["departments"]
-    try:
-        departments = db.create_collection("departments", **DepartmentSchema.department_validator)
-    except Exception as e:
-        pass
-    department_count = departments.count_documents({})
-    print(f"Departments in the collection so far: {department_count}")
-
-
-    # ************************** Set up the students collection unique index
-    students_indexes = students.index_information()
-    if 'students_last_and_first_names' in students_indexes.keys():
-        pass
-    else:
-        # Create a single UNIQUE index on BOTH the last name and the first name.
-        students.create_index([('last_name', pymongo.ASCENDING), ('first_name', pymongo.ASCENDING)],
-                              unique=True,
-                              name="students_last_and_first_names")
-    if 'students_e_mail' in students_indexes.keys():
-        pass
-    else:
-        # Create a UNIQUE index on just the e-mail address
-        students.create_index([('e_mail', pymongo.ASCENDING)], unique=True, name='students_e_mail')
-    # pprint(students.index_information())
-
-
-    # ************************* Set up departments collection unique index
-    departments_indexes = departments.index_information()
-    if 'departments_name' in departments_indexes.keys():
-        pass
-    else:
-         # Create a single UNIQUE index on just the name
-        departments.create_index([('name', pymongo.ASCENDING)], unique=True, name='departments_name')
-    if 'departments_abbreviation' in departments_indexes.keys():
-        pass
-    else:
-        #Create a single UNIQUE index on just the abbreviation
-        departments.create_index([('abbreviation', pymongo.ASCENDING)], unique=True, name='departments_abbreviation')
-    if 'departments_chair_name' in departments_indexes.keys():
-        pass
-    else:
-        #Create a single UNIQUE index on just the chair
-        departments.create_index([('chair_name', pymongo.ASCENDING)], unique=True, name='departments_chair_name')
-    if 'departments_office' in departments_indexes.keys():
-        pass
-    else:
-        #Create a single UNIQUE index on BOTH the building and office
-        departments.create_index([('building', pymongo.ASCENDING), ('office', pymongo.ASCENDING)],
-                                 unique=True,
-                                 name='departments_office')
-
-    # pprint(departments.index_information())
+    Department.create_department_schema(db)
+    Course.create_course_schema(db)
+    Major.create_major_schema(db)
+    Student.create_student_schema(db)
+    Section.create_section_schema(db)
 
 
     main_action: str = ''
