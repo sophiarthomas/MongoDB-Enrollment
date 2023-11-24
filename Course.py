@@ -1,5 +1,6 @@
 import pymongo
 from pprint import pprint
+import Department
 
 def create_course_schema(db):
     course_validator = {
@@ -13,6 +14,10 @@ def create_course_schema(db):
                 'additionalProperties': False,
                 'properties': {
                     '_id': {},
+                    'department_abbreviation': {
+                        'bsonType': 'string',
+                        'description': 'embedded department abbreviation the course falls under',
+                    },
                     'course_name': {
                         'bsonType': 'string',
                         'description': 'A text string that identifies the course',
@@ -37,19 +42,66 @@ def create_course_schema(db):
             }
         }
     }
+    try:
+        db.create_collection("courses", **course_validator)
+    except Exception as e:
+        pass
+    courses = db["courses"]
+    course_count = courses.count_documents({})
+    print(f"Courses in the collection so far {course_count}")
 
 
 def add_course(db):
-    pass
+    collection = db["courses"]
+    department = Department.select_department(db)
+
+    while True:
+        try:
+            courseName = input("Course Name--> ")
+            courseNumber = int(input("Course Number--> "))
+            units = int(input("Course Units--> "))
+            description = input("Course Description--> ")
+
+            course = {
+                "department_abbreviation": department.get("abbreviation"),
+                "course_name": courseName,
+                "course_number": courseNumber,
+                "units": units,
+                "description": description
+            }
+            collection.insert_one(course)
+            print("Course added successfully.")
+            break
+        except Exception as e:
+            print("An error occurred:", str(e))
+            print("Please re-enter course information.")
 
 
 def select_course(db):
-    pass
+    collection = db["courses"]
+    found: bool = False
+    departmentAbbrevation: str = ''
+    courseNumber: int = 0
+
+    while not found:
+        departmentAbbreviation = input("Department Abbreviation-->")
+        courseNumber = int(input("Course Number--> "))
+        course_count: int = collection.count_documents({"department_abbreviation": departmentAbbreviation, "course_number": courseNumber})
+        found = course_count == 1
+        if not found:
+            print("No course found by that department and course number. Try again.")
+    found_course = collection.find_one({"department_abbreviation": departmentAbbreviation, "course_number": courseNumber})
+    return found_course
 
 
 def delete_course(db):
-    pass
+    course = select_course(db)
+    courses = db["courses"]
+    deleted = courses.delete_one({"_id": course["_id"]})
+    print(f"We just deleted: {deleted.deleted_count} course")
 
 
 def list_course(db):
-    pass
+    courses = db["courses"].find({}).sort("course_number", pymongo.ASCENDING)
+    for course in courses:
+        pprint(course)
