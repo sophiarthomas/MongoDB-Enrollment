@@ -1,21 +1,32 @@
 import pymongo
 from pprint import pprint
-from datetime import time
+import Course
+import Enrollment
 
-#write description for each field
 def create_section_schema(db):
-    section_validator={
+    section_validator = {
          'validator': {
             '$jsonSchema': {
                 'bsonType': "object",
-                'description': '',
-                'required': ['semester', 'year', 'building', 'room', 'schedule', 'instructor', 'startTime'],
-                'additionalProperties': True,
+                'description': 'an instance of a course being taught',
+                'required': ['department_abbreviation', 'course_number', 'semester', 'year', 'building',
+                             'room', 'schedule', 'instructor', 'start_hour', 'start_minute'],
+                'additionalProperties': False,
                 'properties': {
-                #embedded is courseNumber, departmentAbbreviation from courses
-                    'id_': {}, #section_number?
-                    #'course_number': {"$ref": ""},
-                    #'department_abbreviation': {"$ref": ""}, #
+                    '_id': {},
+                    'department_abbreviation': {
+                        'bsonType': 'string',
+                        'description': 'The name of the department.'
+                    },
+                    'course_number': {
+                        'bsonType': 'int',
+                        'description': 'A 3-digit number designating a specific course within a department.'
+                    },
+                    'section_number': {
+                        'bsonType': 'int',
+                        'description': 'A 2-digit number designating a section offered of a course during a semester.',
+                        'minimum': 1
+                    },
                     'semester': {
                         'bsonType': 'string',
                         'description': 'time of year that the section takes place ',
@@ -23,8 +34,9 @@ def create_section_schema(db):
                     },
                     'year': {
                         'bsonType': 'int',
-                        'description': 'year that the section takes place '
-                        # ensure the year is not before the current year
+                        'description': 'year that the section takes place',
+                        "minimum": 1949,
+                        'maximum': 2023
                     },
                     'building': {
                         'bsonType': 'string',
@@ -47,85 +59,106 @@ def create_section_schema(db):
                         'bsonType': "string",
                         'description': 'staff member teaching the section'
                     },
-                    'start_time': {
-                        'bsonType': 'time',
-                        'description': 'hour and minute of when the section commences'
-                        #startTime >= 8:00AM and <= 7:30PM
-                    }
+                    'start_hour': {
+                        'bsonType': "int",
+                        "description": "The hour when the section starts.",
+                        "minimum": 8,
+                        "maximum": 18
+                    },
+                    'start_minute': {
+                        'bsonType': "int",
+                        'description': "The minutes into the start_hour when the section starts.",
+                        'enum': [0, 30],
+                    },
+                    'enrollments': Enrollment.enrollmentSchema
                 }
             }
          }
     }
     try:
         db.create_collection("sections", **section_validator)
+        db.sections.create_index([('course_number', pymongo.ASCENDING), ('section_number', pymongo.ASCENDING),
+                                  ('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING)],
+                                 unique=True, name="sections_course_number_section_number_semester_year")
+        db.sections.create_index([('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING),
+                                  ('building', pymongo.ASCENDING), ('room', pymongo.ASCENDING),
+                                  ('schedule', pymongo.ASCENDING), ('start_hour', pymongo.ASCENDING),
+                                  ('start_minute', pymongo.ASCENDING)],
+                                 unique=True, name="sections_semester_year_room_schedule_time")
+        db.sections.create_index([('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING),
+                                  ('schedule', pymongo.ASCENDING), ('start_hour', pymongo.ASCENDING),
+                                  ('start_minute', pymongo.ASCENDING), ('instructor', pymongo.ASCENDING)],
+                                 unique=True, name="sections_semester_year_schedule_time_instructor")
+        db.sections.create_index([('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING),
+                                  ('department_abbreviation', pymongo.ASCENDING), ('course_number', pymongo.ASCENDING),
+                                  ('enrollments.students.student_id', pymongo.ASCENDING)],
+                                 unique=True, name="sections_semester_year_department_course_studentID")
     except Exception as e:
-        pass
+        print(e)
     sections = db["sections"]
     section_count = sections.count_documents({})
     print(f"Sections in the collection so far: {section_count}")
 
 
-#to make sure this can work we will have to import something from course
-#to get the course number and department abbreviation
-
 def add_section(db):
     collection = db["sections"]
+    course = Course.select_course(db)
+    while True:
+        try:
+            sectionNumber = int(input ("Section number--> "))
+            semester = input("Section semester--> ")
+            schedule = input("Section schedule--> ")
+            year = int(input("Section year--> "))
+            room = int(input("Section room--> "))
+            building = input("Section building--> ")
+            instructor = input("Section instructor-->")
+            startHour = input("Start Hour--> ")
+            startMinute = input("Start Minute--> ")
 
-    semester = input("Section semester--> ")
-    schedule = input("Section schedule--> ")
-    year = int(input("Section year--> "))
-    room = int(input("Section room--> "))
-    building = input("Section building--> ")
-    instructor = input("Section instructor-->")
-    start_hour = int(input('Start hour --> '))
-    start_minute = int(input('Start minute --> '))
-    startTime = time(start_hour, start_minute)
-
-    indexes = collection.list_indexes()
-    uniqueness_constraints = [
-        index["key"] for index in indexes if index.get("unique", False)
-    ]
-    for constraint in uniqueness_constraints:
-        query = {key: collection[key] for key in constraint}
-        if collection.find_one(query):
-            print("This section already exists")
-        else:
             section = {
+                "department_abbreviation": course.get("department_abbreviation"),
+                "course_number": course.get("course_number"),
+                "section_number": sectionNumber,
                 "semester": semester,
                 "schedule": schedule,
                 "year": year,
                 "room": room,
                 "building": building,
                 "instructor": instructor,
-                "start_time": startTime
+                "start_hour": startHour,
+                "start_minute": startMinute
             }
-            results = collection.insert_one(section)
+            collection.insert_one(section)
+            print("Section added successfully.")
+            break
+        except Exception as e:
+            print("An error occurred:", str(e))
+            print("Please re-enter section information.")
 
 
 def select_section(db):
     collection = db["sections"]
+    course = Course.select_course(db)
     found: bool = False
+    sectionNumber: int = 0
     semester: str = ''
-    schedule: str = ''
     year: int = 0
-    instructor: str = ''
-    startTime: time
-    #choose a unique index to find a given section
+
     while not found:
-        semester = input("Section semester--> ")
-        schedule = input("Section schedule--> ")
-        year = int(input("Section year--> "))
-        instructor = input("Section instructor-->")
-        start_hour = int(input('Start hour --> '))
-        start_minute = int(input('Start minute --> '))
-        startTime = time(start_hour, start_minute)
-        section_count: int = collection.count_documents({"semester": semester, "schedule": schedule, "year": year,
-                                                         "instructor": instructor, "start_time": startTime})
+        sectionNumber = int(input("Section Number--> "))
+        semester = input("Section Semester--> ")
+        year = int(input("Section Year--> "))
+        section_count: int = collection.count_documents({"course_number": course.get("course_number"),
+                                                         "section_number": sectionNumber,
+                                                         "semester": semester,
+                                                         "year": year})
         found = section_count == 1
         if not found:
             print("No section found by the given attributes. Try again")
-    found_student = collection.find_one({"semester": semester, "schedule": schedule, "year": year,
-                                                         "instructor": instructor, "start_time": startTime})
+    found_student = collection.find_one({"course_number": course.get("course_number"),
+                                                         "section_number": sectionNumber,
+                                                         "semester": semester,
+                                                         "year": year})
     return found_student
 
 

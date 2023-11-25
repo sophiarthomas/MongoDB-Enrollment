@@ -44,6 +44,10 @@ def create_course_schema(db):
     }
     try:
         db.create_collection("courses", **course_validator)
+        db.courses.create_index([('department_abbreviation', pymongo.ASCENDING), ('course_number', pymongo.ASCENDING)],
+                                unique=True, name='courses_department_abbreviation_number')
+        db.courses.create_index([('department_abbreviation', pymongo.ASCENDING), ('course_name', pymongo.ASCENDING)],
+                                unique=True, name='courses_department_abbreviation_name')
     except Exception as e:
         pass
     courses = db["courses"]
@@ -79,18 +83,18 @@ def add_course(db):
 
 def select_course(db):
     collection = db["courses"]
+    department = Department.select_department(db)
     found: bool = False
-    departmentAbbrevation: str = ''
     courseNumber: int = 0
 
     while not found:
-        departmentAbbreviation = input("Department Abbreviation-->")
         courseNumber = int(input("Course Number--> "))
-        course_count: int = collection.count_documents({"department_abbreviation": departmentAbbreviation, "course_number": courseNumber})
+        course_count: int = collection.count_documents({"department_abbreviation": department.get("abbreviation"),
+                                                        "course_number": courseNumber})
         found = course_count == 1
         if not found:
             print("No course found by that department and course number. Try again.")
-    found_course = collection.find_one({"department_abbreviation": departmentAbbreviation, "course_number": courseNumber})
+    found_course = collection.find_one({"department_abbreviation": department.get("abbreviation"), "course_number": courseNumber})
     return found_course
 
 

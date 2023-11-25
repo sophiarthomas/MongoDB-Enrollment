@@ -1,11 +1,13 @@
 import pymongo
 from pprint import pprint
+from datetime import datetime, timezone
+import Major
 
 def create_student_schema(db):
 	student_validator={
 		 'validator': {
 			'$jsonSchema': {
-				'bsonType': "object",
+				'bsonType': 'object',
 				'description': 'A person attending university to earn a degree or credential',
 				'required': ['last_name', 'first_name', 'e_mail'],
 				'additionalProperties': False,
@@ -28,6 +30,21 @@ def create_student_schema(db):
 						'description': 'electronic mail address of the student',
 						'minLength': 10,
 						'maxLength': 255
+					},
+					'student_major': {
+						'bsonType': 'object',
+						'description': 'array of majors the student has declared ',
+						'properties': {
+							'major_name': {
+								'bsonType': 'string',
+								'description': 'name of the major the student has declared'
+							},
+							'declaration_date': {
+								#must handle the declaration_date >= today while inserting
+								'bsonType': 'date',
+								'description': 'date when the major was declared',
+							}
+						}
 					}
 				}
 			}
@@ -39,8 +56,10 @@ def create_student_schema(db):
 	try:
 		db.create_collection("students", **student_validator)
 		db.students.create_index([('last_name', pymongo.ASCENDING), ('first_name', pymongo.ASCENDING)],
-							  unique=True,
-							  name="students_last_and_first_names")
+							  unique=True, name="students_last_and_first_names")
+		#trying to create an index on student and major
+		db.students.create_index([('_id', pymongo.ASCENDING), ('student_major.major_name', pymongo.ASCENDING)],
+								 unique=True, name='student_majors_student_and_major')
 		db.students.create_index([('e_mail', pymongo.ASCENDING)], unique=True, name='students_e_mail')
 	except Exception as e:
 		pass
@@ -62,31 +81,25 @@ def add_student(db):
 	"""
 	# Create a "pointer" to the students collection within the db database.
 	collection = db["students"]
-	unique_name: bool = False
-	unique_email: bool = False
-	lastName: str = ''
-	firstName: str = ''
-	email: str = ''
-	while not unique_name or not unique_email:
-		lastName = input("Student last name--> ")
-		firstName = input("Student first name--> ")
-		email = input("Student e-mail address--> ")
-		name_count: int = collection.count_documents({"last_name": lastName, "first_name": firstName})
-		unique_name = name_count == 0
-		if not unique_name:
-			print("We already have a student by that name.  Try again.")
-		if unique_name:
-			email_count = collection.count_documents({"e_mail": email})
-			unique_email = email_count == 0
-			if not unique_email:
-				print("We already have a student with that e-mail address.  Try again.")
-	# Build a new students document preparatory to storing it
-	student = {
-		"last_name": lastName,
-		"first_name": firstName,
-		"e_mail": email
-	}
-	results = collection.insert_one(student)
+
+	while True:
+		try:
+			lastName = input("Student last name--> ")
+			firstName = input("Student first name--> ")
+			email = input("Student e-mail address--> ")
+
+			student = {
+				"last_name": lastName,
+				"first_name": firstName,
+				"e_mail": email
+			}
+
+			collection.insert_one(student)
+			print("Student added successfully.")
+			break
+		except Exception as e:
+			print("An error occurred:", str(e))
+			print("Please re-enter student information.")
 
 
 def select_student(db):
@@ -148,3 +161,29 @@ def list_student(db):
 	# pretty print is good enough for this work.  It doesn't have to win a beauty contest.
 	for student in students:
 		pprint(student)
+
+
+def add_major_student(db):
+	"""
+	from what i can tell this function will override the last major declaration
+	if the student and major are the same, but a check should be made before students.update_one
+	is written
+	"""
+	students = db["students"]
+	student = select_student(db)
+	try:
+		major = Major.select_major(db)
+		declarationDate = datetime.utcnow()
+
+		studentMajor = {
+			"major_name": major.get("name"),
+			"declaration_date": declarationDate
+		}
+		students.update_one(
+			{"_id": student.get("_id")},
+			{"$set": {"student_major": studentMajor}}
+		)
+
+		print("Student Major added successfully")
+	except Exception as e:
+		print(e)
