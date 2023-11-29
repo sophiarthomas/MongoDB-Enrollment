@@ -100,6 +100,9 @@ def select_course(db):
 
 def delete_course(db):
     course = select_course(db)
+    if course is None:
+        print("Course does not exist. Try again.")
+        return
     courses = db["courses"]
     deleted = courses.delete_one({"_id": course["_id"]})
     print(f"We just deleted: {deleted.deleted_count} course")
