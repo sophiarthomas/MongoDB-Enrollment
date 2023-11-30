@@ -180,14 +180,18 @@ def list_section(db):
 
 def add_student_section(db):
     """
-    Adding an enrollment to the enrollments array in sections
+    Adding a student and enrollment_type to the enrollments array in sections
+    Adding section and enrollment information to the sections array in students
+    to represent an enrollment
     :param db:
     :return:
     """
     print("adding a student to a section ")
     sections = db["sections"]
+    students = db["students"]
     section = select_section(db)
     enrollment = {}
+    studentEnrollment = {}
     while True:
         try:
             student = Student.select_student(db)
@@ -198,15 +202,37 @@ def add_student_section(db):
                     'student_id': student.get("_id"),
                     'enrollment_type.application_date': applicationDate
                 }
+                studentEnrollment = {
+                    'section_id': section.get("_id"),
+                    'department_abbreviation': section.get("department_abbreviation"),
+                    'course_number': section.get("course_number"),
+                    'section_number': section.get("section_number"),
+                    'semester': section.get("semester"),
+                    'year': section.get("year"),
+                    'enrollment': {"application_date": applicationDate}
+                }
             elif enrollmentType.lower() == "l":
                 minSatisfactory = input("Enter the Minimum Satisfactory Grade (A, B, C)--> ")
                 enrollment = {
                     'student_id': student.get("_id"),
                     'enrollment_type': {'min_satisfactory': minSatisfactory}
                 }
+                studentEnrollment = {
+                    'section_id': section.get("_id"),
+                    'department_abbreviation': section.get("department_abbreviation"),
+                    'course_number': section.get("course_number"),
+                    'section_number': section.get("section_number"),
+                    'semester': section.get("semester"),
+                    'year': section.get("year"),
+                    'enrollment': {"min_satisfactory": minSatisfactory}
+                }
             sections.update_one(
                 {"_id": section.get("_id")},
                 {"$push": {"enrollments": enrollment}}
+            )
+            students.update_one(
+                {"_id": student.get("_id")},
+                {"$push": {"sections": studentEnrollment}}
             )
             print("Enrollment added successfully")
             break

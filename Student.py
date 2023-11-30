@@ -2,6 +2,8 @@ import pymongo
 from pprint import pprint
 from datetime import datetime, timezone
 import Major
+import Enrollment
+import Section
 
 def create_student_schema(db):
 	student_validator={
@@ -32,7 +34,7 @@ def create_student_schema(db):
 						'maxLength': 255
 					},
 					'student_major': {
-						'bsonType': 'object',
+						'bsonType': 'array',
 						'description': 'array of majors the student has declared ',
 						'properties': {
 							'major_name': {
@@ -45,8 +47,46 @@ def create_student_schema(db):
 								'description': 'date when the major was declared',
 							}
 						}
+					},
+					'sections': {
+						'bsonType': 'array',
+						'description': 'array of sections the student is enrolled in',
+						'properties': {
+							'section_id': {
+								'bsonType': 'objectId',
+								'description': 'number that uniquely identifies the section'
+							},
+							'department_abbreviation': {
+								'bsonType': 'string',
+								'description': 'The name of the department.'
+							},
+							'course_number': {
+								'bsonType': 'int',
+								'description': 'A 3-digit number designating a specific course within a department.'
+							},
+							'section_number': {
+								'bsonType': 'int',
+								'description': 'A 2-digit number designating a section offered of a course during a semester.',
+								'minimum': 1
+							},
+							'semester': {
+								'bsonType': 'string',
+								'description': 'time of year that the section takes place ',
+								'enum': ['Fall', 'Spring', 'Summer I', 'Summer II', 'Summer III', 'Winter']
+							},
+							'year': {
+								'bsonType': 'int',
+								'description': 'year that the section takes place',
+								"minimum": 1949,
+								'maximum': 2023
+							},
+							'enrollment': {
+								'enrollment_type': Enrollment.enrollmentType
+							}
+						}
 					}
 				}
+
 			}
 		 }
 	}
@@ -181,9 +221,9 @@ def add_major_student(db):
 		}
 		students.update_one(
 			{"_id": student.get("_id")},
-			{"$set": {"student_major": studentMajor}}
+			{"$push": {"student_major": studentMajor}}
 		)
-
 		print("Student Major added successfully")
 	except Exception as e:
 		print(e)
+
