@@ -211,8 +211,19 @@ def add_major_student(db):
 	"""
 	students = db["students"]
 	student = select_student(db)
+
 	try:
 		major = Major.select_major(db)
+
+		# check if the entered major and student combination are already declared
+		major_check = major.get("name")
+		existing_majors = []
+		for m in student.get("student_major", []):
+			existing_majors(m.get("major_name"))
+		if major_check in existing_majors:
+			print(f"Student has already declared {major_check} as a major.")
+			return
+
 		declarationDate = datetime.utcnow()
 
 		studentMajor = {
@@ -226,4 +237,6 @@ def add_major_student(db):
 		print("Student Major added successfully")
 	except Exception as e:
 		print(e)
+
+
 
