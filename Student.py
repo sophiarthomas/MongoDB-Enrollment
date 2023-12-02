@@ -6,6 +6,8 @@ import Enrollment
 import Section
 
 def create_student_schema(db):
+	today = datetime.utcnow() #get current date
+
 	student_validator={
 		 'validator': {
 			'$jsonSchema': {
@@ -45,6 +47,9 @@ def create_student_schema(db):
 								#must handle the declaration_date >= today while inserting
 								'bsonType': 'date',
 								'description': 'date when the major was declared',
+								'$expr':{
+									'$lte': ['$declaration_date', today] # lte = less than equal (check if declaration date >= today)
+								}
 							}
 						}
 					},
@@ -237,6 +242,5 @@ def add_major_student(db):
 		print("Student Major added successfully")
 	except Exception as e:
 		print(e)
-
 
 
