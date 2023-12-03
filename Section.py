@@ -92,10 +92,11 @@ def create_section_schema(db):
                                   ('schedule', pymongo.ASCENDING), ('start_hour', pymongo.ASCENDING),
                                   ('start_minute', pymongo.ASCENDING), ('instructor', pymongo.ASCENDING)],
                                  unique=True, name="sections_semester_year_schedule_time_instructor")
-        db.sections.create_index([('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING),
-                                  ('department_abbreviation', pymongo.ASCENDING), ('course_number', pymongo.ASCENDING),
-                                  ('enrollments.student_id', pymongo.ASCENDING)],
-                                 unique=True, name="sections_semester_year_department_course_studentId")
+        #issue when adding a new section, student_id takes on null value
+        # db.sections.create_index([('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING),
+        #                           ('department_abbreviation', pymongo.ASCENDING), ('course_number', pymongo.ASCENDING),
+        #                           ('enrollments.student_id', pymongo.ASCENDING)],
+        #                          unique=True, sparse=True, name="sections_semester_year_department_course_studentId")
     except Exception as e:
         pass
     sections = db["sections"]
@@ -103,8 +104,21 @@ def create_section_schema(db):
     print(f"Sections in the collection so far: {section_count}")
 
 
+def add_section_to_course(db, course, section):
+    sec = {
+        'section_id': section.get("_id"),
+        'section_number': section.get("section_number"),
+        'semester': section.get("semester"),
+        'year': section.get("year")
+    }
+    db.courses.update_one(
+        {"_id": course.get("_id")},
+        {"$push": {"sections": sec}}
+    )
+
+
 def add_section(db):
-    collection = db["sections"]
+    sections = db["sections"]
     course = Course.select_course(db)
     while True:
         try:
@@ -131,7 +145,12 @@ def add_section(db):
                 "start_hour": startHour,
                 "start_minute": startMinute
             }
-            collection.insert_one(section)
+            #Adding a new section document to the section collection
+            result = sections.insert_one(section)
+
+            #Adding section information to the sections array in courses
+            add_section_to_course(db, course, section)
+
             print("Section added successfully.")
             break
         except Exception as e:
@@ -166,10 +185,24 @@ def select_section(db):
 
 
 def delete_section(db):
-    section = select_section(db)
     sections = db["sections"]
-    deleted = sections.delete_one({"_id": section["_id"]})
-    print(f"We just deleted: {deleted.deleted_count} sections")
+    section = select_section(db)
+    #ensure that there are no enrollments before deleting
+    enrollment_count: int = sections.count_documents({"_id": section.get("_id"),
+                                                        "enrollments": {"$exists": True, "$ne": []}})
+    if enrollment_count == 0:
+        #removing section from the array sections within course
+        db.courses.update_one(
+            {"department_abbreviation": section.get("department_abbreviation"),
+             "course_number": section.get("course_number")},
+            {"$pull": {"sections": {"section_id": section.get("_id")}}}
+        )
+        #delete section document from section collection
+        deleted = db.sections.delete_one({"_id": section["_id"]})
+        print(f"We just deleted: {deleted.deleted_count} sections")
+    else:
+        print(f"There are {enrollment_count} student(s) enrolled in this section. \n"
+              f"You must delete all enrollments before deleting this section.")
 
 
 def list_section(db):
@@ -177,6 +210,8 @@ def list_section(db):
     for section in sections:
         pprint(section)
 
+
+############### Enrollment Functions ###############
 
 def add_student_section(db):
     """
@@ -191,17 +226,34 @@ def add_student_section(db):
     students = db["students"]
     section = select_section(db)
     enrollment = {}
-    studentEnrollment = {}
+    enrollment_type = {}
     while True:
-        try:
-            student = Student.select_student(db)
-            enrollmentType = input("Enter PassFail or LetterGrade (P/L)--> ")
-            if enrollmentType.lower() == "p":
-                applicationDate = datetime.now()
-                enrollment = {
-                    'student_id': student.get("_id"),
-                    'enrollment_type.application_date': applicationDate
-                }
+        student = Student.select_student(db)
+        exists = sections.find_one({
+            "semester": section.get("semester"),
+            "year": section.get("year"),
+            "department_abbreviation": section.get("department_abbreviation"),
+            "course_number": section.get("course_number"),
+            "enrollments.student_id": student.get("_id")
+        }
+        )
+        if not exists:
+            try:
+                enrollmentType = input("Enter PassFail or LetterGrade (P/L)--> ")
+                if enrollmentType.lower() == "p":
+                    applicationDate = datetime.utcnow()
+                    enrollment = {
+                        'student_id': student.get("_id"),
+                        'enrollment_type': {'application_date': applicationDate}
+                    }
+                    enrollment_type = {"application_date": applicationDate}
+                elif enrollmentType.lower() == "l":
+                    minSatisfactory = input("Enter the Minimum Satisfactory Grade (A, B, C)--> ")
+                    enrollment = {
+                        'student_id': student.get("_id"),
+                        'enrollment_type': {'min_satisfactory': minSatisfactory}
+                    }
+                    enrollment_type = minSatisfactory
                 studentEnrollment = {
                     'section_id': section.get("_id"),
                     'department_abbreviation': section.get("department_abbreviation"),
@@ -209,52 +261,44 @@ def add_student_section(db):
                     'section_number': section.get("section_number"),
                     'semester': section.get("semester"),
                     'year': section.get("year"),
-                    'enrollment': {"application_date": applicationDate}
+                    'enrollment': enrollment_type
                 }
-            elif enrollmentType.lower() == "l":
-                minSatisfactory = input("Enter the Minimum Satisfactory Grade (A, B, C)--> ")
-                enrollment = {
-                    'student_id': student.get("_id"),
-                    'enrollment_type': {'min_satisfactory': minSatisfactory}
-                }
-                studentEnrollment = {
-                    'section_id': section.get("_id"),
-                    'department_abbreviation': section.get("department_abbreviation"),
-                    'course_number': section.get("course_number"),
-                    'section_number': section.get("section_number"),
-                    'semester': section.get("semester"),
-                    'year': section.get("year"),
-                    'enrollment': {"min_satisfactory": minSatisfactory}
-                }
-            sections.update_one(
-                {"_id": section.get("_id")},
-                {"$push": {"enrollments": enrollment}}
-            )
-            students.update_one(
-                {"_id": student.get("_id")},
-                {"$push": {"sections": studentEnrollment}}
-            )
-            print("Enrollment added successfully")
-            break
-        except Exception as e:
-            print(e)
+                sections.update_one(
+                    {"_id": section.get("_id")},
+                    {"$push": {"enrollments": enrollment}}
+                )
+                students.update_one(
+                    {"_id": student.get("_id")},
+                    {"$push": {"sections": studentEnrollment}}
+                )
+                print("Enrollment added successfully")
+                break
+            except Exception as e:
+                pprint(e)
+        else:
+            print("That student is already enrolled in a section of the same course during the same semester. Try again.")
+
+
 
 def select_student_section(db):
     collection = db["sections"]
     found: bool = False
+    #selecting a section
     section = select_section(db)
 
     while not found:
+        #selecting a student
         student = Student.select_student(db)
+        #counting how many enrollment documents match the entered information
         enrollment_count: int = collection.count_documents({"_id": section.get("_id"),
-                                                            "enrollments.student_id": student.get("_id")})
+                                                            "enrollments": {"student_id": student.get("_id")}})
         found = enrollment_count == 1
         if not found:
             print("No enrollment found by that pair of section and student. Try again")
+    #finding the section with the matching enrollment
     found_enrollment_section = collection.find_one({"_id": section.get("_id"),
-                                            "enrollments.student_id": student.get("_id")})
+                                            "enrollments": {"student_id": student.get("_id")}})
     return found_enrollment_section
-
 
 
 def delete_student_section(db):
@@ -262,11 +306,16 @@ def delete_student_section(db):
     if enrollment_section:
         section_id = enrollment_section["_id"]
         student_id = enrollment_section["enrollments"][0]["student_id"]
+        #deleting enrollments from section document
         db.sections.update_one(
             {"_id": section_id},
             {"$pull": {"enrollments": {"student_id": student_id}}}
         )
-
+        #deleting denormalized section information from students
+        db.students.update_one(
+            {"_id": student_id},
+            {"$pull": {"sections": {"section_id": section_id}}}
+        )
         print("Enrollment deleted successfully.")
     else:
         print("No enrollment found.")
