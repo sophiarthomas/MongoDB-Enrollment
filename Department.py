@@ -42,20 +42,63 @@ def create_department_schema(db):
                         'description': '',
                         'minLength': 10,
                         'maxLength': 80
+                    },
+                    'courses': {
+                        'bsonType': 'array',
+                        'description': 'array of courses offered by the department',
+                        'additionalItems': False,
+                        'items': {
+                            'bsonType': 'object',
+                            'properties': {
+                                'course_id': {
+                                    'bsonType': 'objectId',
+                                    'description': 'digits that uniquely identify a course'
+                                },
+                                'course_number': {
+                                    'bsonType': 'int',
+                                    'description': 'Numerical value that correlates with the course name',
+                                    'minimum': 100,
+                                    'maximum': 699
+                                },
+                                'course_name': {
+                                    'bsonType': 'string',
+                                    'description': 'A text string that identifies the course',
+                                }
+                            }
+                        }
+                    },
+                    'majors': {
+                        'bsonType': 'array',
+                        'description': 'array of majors offered by the department',
+                        'additionalItems': False,
+                        'items': {
+                            'bsonType': 'object',
+                            'required': ['major_id', 'major_name'],
+                            'additionalProperties': False,
+                            'properties': {
+                                'major_id': {
+                                    'bsonType': 'objectId',
+                                },
+                                'major_name': {
+                                    'bsonType': 'string',
+                                    'description': 'a text string that identifies the major'
+                                }
+                            }
+                        }
                     }
                 }
             }
          }
     }
     try:
-        db.departments = db.create_collection("departments", **department_validator)
+        db.create_collection("departments", **department_validator)
         db.departments.create_index([('name', pymongo.ASCENDING)], unique=True, name='departments_name')
         db.departments.create_index([('abbreviation', pymongo.ASCENDING)], unique=True, name='departments_abbreviation')
         db.departments.create_index([('chair_name', pymongo.ASCENDING)], unique=True, name='departments_chair_name')
         db. departments.create_index([('building', pymongo.ASCENDING), ('office', pymongo.ASCENDING)],
                                  unique=True,name='departments_office')
     except Exception as e:
-        pass
+        print(e)
     departments = db["departments"]
     department_count = departments.count_documents({})
     print(f"Departments in the collection so far: {department_count}")
@@ -73,16 +116,16 @@ def add_department(db):
     while True:
         try:
             name = input("Department name (String length 50)--> ")
-            abbreviation = input("Abbreviation (String length 6)--> ")
-            chair_name = input("Chair Name (String length 80)--> ")
-            building = input("Building (String length 10)--> ")
-            office = int(input("Office (Integer)--> "))
-            description = input("Description (String length 80)--> ")
+            abbreviation = input("Department Abbreviation (String length 6)--> ")
+            chairName = input("Department Chair Name (String length 80)--> ")
+            building = input("Department Building (String length 10)--> ")
+            office = int(input("Department Office (Integer)--> "))
+            description = input("Department Description (String length 80)--> ")
 
             department = {
                 "name": name,
                 "abbreviation": abbreviation,
-                "chair_name": chair_name,
+                "chair_name": chairName,
                 "building": building,
                 "office": office,
                 "description": description
@@ -98,22 +141,31 @@ def add_department(db):
 def select_department(db):
     collection = db["departments"]
     found: bool = False
-    name: str = ''
+    abbreviation: str = ''
     while not found:
-        name = input("Department's name-->")
-        name_count: int = collection.count_documents({"name": name})
-        found = name_count == 1
+        abbreviation = input("Department's abbreviation-->")
+        abbreviation_count: int = collection.count_documents({"abbreviation": abbreviation})
+        found = abbreviation_count == 1
         if not found:
-            print("No department found by that name. Try again.")
-    found_department = collection.find_one({"name": name})
+            print("No department found by that abbreviation. Try again.")
+    found_department = collection.find_one({"abbreviation": abbreviation})
     return found_department
 
 
 def delete_department(db):
+    collection = db["departments"]
     department = select_department(db)
-    departments = db["departments"]
-    deleted = departments.delete_one({"_id": department["_id"]})
-    print(f"We just deleted: {deleted.deleted_count} departments")
+    #check if there are any courses in the department
+    courses_count = len(department.get("courses", []))
+    majors_count = len(department.get("majors", []))
+    if courses_count == 0 & majors_count == 0:
+        deleted = collection.delete_one({"_id": department["_id"]})
+        print(f"We just deleted: {deleted.deleted_count} departments")
+
+    else:
+        print(f"There are {courses_count} courses and {majors_count} majors in that department. Delete them first, "
+              f"then come back here to delete the department.")
+
 
 
 def list_department(db):
