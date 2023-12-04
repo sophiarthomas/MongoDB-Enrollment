@@ -37,6 +37,31 @@ def create_course_schema(db):
                     'description': {
                         'bsonType': 'string',
                         'description': 'Provides additional information about the course',
+                    },
+                    'section': {
+                        'bsonType': 'array',
+                        'description': 'Array of section references for each course',
+                        'additionalItems': False,
+                        'items': {
+                            'bsonType': 'object',
+                            'required': ['section_id', 'section_number', 'semester', 'year'],
+                            'section_id': {
+                                'bsonType': 'objectId',
+                                'description': 'Uniquely identifies a section',
+                            },
+                            'section_number': {
+                                'bsonType': 'int',
+                                'description': 'Numerical value that correlates to the section',
+                            },
+                            'semester': {
+                                'bsonType': 'string',
+                                'description': 'Time of year that section takes place',
+                            },
+                            'year': {
+                                'bsonType': 'int',
+                                'description': 'Year that section takes place',
+                            }
+                        }
                     }
                 }
             }
