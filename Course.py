@@ -10,13 +10,14 @@ def create_course_schema(db):
                 'description': 'A catalog entry. Each course proposes to offer students who enroll in \
                 a section of the course an organized sequence of lessons and assignments aimed at teaching \
                 them specified skills.',
-                'required': ['course_name', 'course_number', 'units', 'description'],
+                'required': ['department_abbreviation', 'course_name', 'course_number', 'units', 'description'],
                 'additionalProperties': False,
                 'properties': {
                     '_id': {},
                     'department_abbreviation': {
                         'bsonType': 'string',
                         'description': 'embedded department abbreviation the course falls under',
+                        'maxLength': 6
                     },
                     'course_name': {
                         'bsonType': 'string',
@@ -25,41 +26,43 @@ def create_course_schema(db):
                     'course_number': {
                         'bsonType': 'int',
                         'description': 'Numerical value that correlates with the course name',
-                        'minLength': 100,
-                        'maxLength': 699,
+                        'minimum': 100,
+                        'maximum': 699
                     },
                     'units': {
                         'bsonType': 'int',
                         'description': 'The measure of the amount of work required to complete a course',
-                        'minLength': 1,
-                        'maxLength': 5,
+                        'minimum': 1,
+                        'maximum': 5,
                     },
                     'description': {
                         'bsonType': 'string',
                         'description': 'Provides additional information about the course',
                     },
-                    'section': {
+                    'sections': {
                         'bsonType': 'array',
-                        'description': 'Array of section references for each course',
+                        'description': 'array of sections taught for a course',
                         'additionalItems': False,
                         'items': {
                             'bsonType': 'object',
                             'required': ['section_id', 'section_number', 'semester', 'year'],
-                            'section_id': {
-                                'bsonType': 'objectId',
-                                'description': 'Uniquely identifies a section',
-                            },
-                            'section_number': {
-                                'bsonType': 'int',
-                                'description': 'Numerical value that correlates to the section',
-                            },
-                            'semester': {
-                                'bsonType': 'string',
-                                'description': 'Time of year that section takes place',
-                            },
-                            'year': {
-                                'bsonType': 'int',
-                                'description': 'Year that section takes place',
+                            'properties': {
+                                'section_id': {
+                                    'bsonType': 'objectId',
+                                    'description': 'Uniquely identifies a section'
+                                },
+                                'section_number': {
+                                    'bsonType': 'int',
+                                    'description': 'Two-digit numerical value that correlates to the section'
+                                },
+                                'semester': {
+                                    'bsonType': 'string',
+                                    'description': 'Time of year that the section takes place '
+                                },
+                                'year': {
+                                    'bsonType': 'int',
+                                    'description': 'year that the section takes place'
+                                }
                             }
                         }
                     }
@@ -74,7 +77,7 @@ def create_course_schema(db):
         db.courses.create_index([('department_abbreviation', pymongo.ASCENDING), ('course_name', pymongo.ASCENDING)],
                                 unique=True, name='courses_department_abbreviation_name')
     except Exception as e:
-        pass
+        print(e)
     courses = db["courses"]
     course_count = courses.count_documents({})
     print(f"Courses in the collection so far {course_count}")
@@ -99,6 +102,17 @@ def add_course(db):
                 "description": description
             }
             collection.insert_one(course)
+
+            #Adds course reference and denormalized values(course_number&course_name) to 'courses' array in departments
+            courses = {
+                "course_id": course.get("_id"),
+                "course_number": courseNumber,
+                "course_name": courseName
+            }
+            db.departments.update_one(
+                {"_id": department.get("_id")},
+                {"$push": {"courses": courses}}
+            )
             print("Course added successfully.")
             break
         except Exception as e:
@@ -124,13 +138,19 @@ def select_course(db):
 
 
 def delete_course(db):
+    collection = db["courses"]
     course = select_course(db)
-    if course is None:
-        print("Course does not exist. Try again.")
-        return
-    courses = db["courses"]
-    deleted = courses.delete_one({"_id": course["_id"]})
-    print(f"We just deleted: {deleted.deleted_count} course")
+    section_count = len(course.get("sections", []))
+    if section_count == 0:
+        db.departments.update_one(
+            {"abbreviation": course.get("department_abbreviation")},
+            {"$pull" : {"courses": {"course_id": course.get("_id")}}}
+        )
+        deleted = collection.delete_one({"_id": course["_id"]})
+        print(f"We just deleted: {deleted.deleted_count} course")
+    else:
+        print(f"There are {section_count} sections for that course. Delete them first, "
+              f"then come back here to delete the course.")
 
 
 def list_course(db):
