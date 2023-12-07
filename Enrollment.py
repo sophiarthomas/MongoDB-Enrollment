@@ -27,26 +27,23 @@ enrollmentType = {
         }
     ]
 }
-students = { #list of references to students enrolled in given section
-    'bsonType': 'object',
-    'required': ['student_id'],
-    'additionalProperties': False,
-    'properties': {
-        'student_id': {
-            'bsonType': 'objectId',
-            'description': '_id of the student enrolled'
-        }
-    }
-}
+
 
 enrollmentSchema = {
-    'bsonType': "object",
-    'description': '',
-    'required': ['students', 'enrollment_data'],
-    'additionalProperties': False,
-    'properties': {
-        'students': students,
-        'enrollment_data': enrollmentType
+    'bsonType': 'array',
+    'description': 'enrollment information between student and section, containing enrollment_type',
+    'items': {
+        'bsonType': 'object',
+        'required': ['student_id', 'enrollment_type'],
+        'additionalProperties': False,
+        'properties': {
+            'student_id': {
+                'bsonType': 'objectId',
+                'description': '_id of the student enrolled'
+            },
+            'enrollment_type': enrollmentType
+        }
     }
+
 }
 

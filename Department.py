@@ -14,24 +14,23 @@ def create_department_schema(db):
                     'name': {
                         'bsonType': 'string',
                         'description': 'name of the department',
-                        'minLength': 10,
-                        'maxLength': 50
                     },
                     'abbreviation': {
                         'bsonType': 'string',
                         'description': 'shortened identifiable name of the department',
+                        'minLength': 1,
                         'maxLength': 6
                     },
                     'chair_name': {
                         'bsonType': 'string',
                         'description': 'name of the department chair',
+                        'minLength': 1,
                         'maxLength': 80
                     },
                     'building': {
                         'bsonType': 'string',
                         'enum': ['ANAC', 'CDC', 'DC', 'ECS', 'EN2', 'EN3', 'EN4', 'EN5', 'ET', 'HSCI', 'NUR', 'VEC'],
                         'description': 'name of building where the department office resides',
-                        'maxLength': 10
                     },
                     'office': {
                         'bsonType': 'int',
@@ -40,7 +39,7 @@ def create_department_schema(db):
                     'description': {
                         'bsonType': 'string',
                         'description': '',
-                        'minLength': 10,
+                        'minLength': 1,
                         'maxLength': 80
                     },
                     'courses': {
@@ -49,6 +48,8 @@ def create_department_schema(db):
                         'additionalItems': False,
                         'items': {
                             'bsonType': 'object',
+                            'required': ['course_id', 'course_number', 'course_name'],
+                            'additionalProperties': False,
                             'properties': {
                                 'course_id': {
                                     'bsonType': 'objectId',
@@ -115,10 +116,12 @@ def add_department(db):
 
     while True:
         try:
-            name = input("Department name (String length 50)--> ")
+            name = input("Department name--> ")
             abbreviation = input("Department Abbreviation (String length 6)--> ")
             chairName = input("Department Chair Name (String length 80)--> ")
-            building = input("Department Building (String length 10)--> ")
+            building = input("Department Building "
+                             "[ANAC, CDC, DC, ECS, EN2, EN3, EN4, "
+                             "EN5, ET, HSCI, NUR, VEC]--> ")
             office = int(input("Department Office (Integer)--> "))
             description = input("Department Description (String length 80)--> ")
 
@@ -134,7 +137,8 @@ def add_department(db):
             print("Department added successfully.")
             break
         except Exception as e:
-            print("An error occurred:", str(e))
+            print("An error occurred:")
+            pprint(e)
             print("Please re-enter department information.")
 
 

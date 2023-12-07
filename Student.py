@@ -105,7 +105,7 @@ def create_student_schema(db):
 							  unique=True, name="students_last_and_first_names")
 		db.students.create_index([('e_mail', pymongo.ASCENDING)], unique=True, name='students_e_mail')
 	except Exception as e:
-		print(e)
+		pass
 	students = db["students"]
 	student_count = students.count_documents({})
 	print(f"Students in the collection so far: {student_count}")
@@ -141,7 +141,8 @@ def add_student(db):
 			print("Student added successfully.")
 			break
 		except Exception as e:
-			print("An error occurred:", str(e))
+			print("An error occurred:")
+			pprint(e)
 			print("Please re-enter student information.")
 
 
@@ -171,21 +172,24 @@ def select_student(db):
 
 def delete_student(db):
 	"""
-	Delete a student from the database.
+	Delete a student from the database. possible orphans -> the sections that a student is enrolled in (enrollment)
 	:param db:  The current database connection.
 	:return:    None
 	"""
 	# student isn't a Student object (we have no such thing in this application)
 	# rather it's a dict with all the content of the selected student, including
 	# the MongoDB-supplied _id column which is a built-in surrogate.
-	student = select_student(db)
-	# Create a "pointer" to the students collection within the db database.
 	students = db["students"]
-	# student["_id"] returns the _id value from the selected student document.
-	deleted = students.delete_one({"_id": student["_id"]})
-	# The deleted variable is a document that tells us, among other things, how
-	# many documents we deleted.
-	print(f"We just deleted: {deleted.deleted_count} students.")
+	student = select_student(db)
+	enrollment_count: int = students.count_documents({"_id": student.get("_id"),
+													   "sections": {"$exists": True, "$ne": []}})
+	if enrollment_count == 0:
+		# student["_id"] returns the _id value from the selected student document.
+		deleted = students.delete_one({"_id": student["_id"]})
+		print(f"We just deleted: {deleted.deleted_count} students.")
+	else:
+		print(f"That student is enrolled in {enrollment_count} section(s) \n"
+			  f"You must delete all enrollments before deleting this student.")
 
 
 def list_student(db):
@@ -214,32 +218,33 @@ def add_major_student(db):
 	"""
 	students = db["students"]
 	student = select_student(db)
+	while True:
+		try:
+			major = Major.select_major(db)
 
-	try:
-		major = Major.select_major(db)
+			# check if the entered major and student combination are already declared
+			major_check = major.get("name")
+			existing_majors = []
+			for m in student.get("student_major", []):
+				existing_majors.append(m.get("major_name"))
+			if major_check in existing_majors:
+				raise Exception(f"Student has already declared {major_check} as a major, "
+					  f"students cannot declare the same major twice. Try again.")
+			else:
+				declarationDate = datetime.utcnow()
 
-		# check if the entered major and student combination are already declared
-		major_check = major.get("name")
-		existing_majors = []
-		for m in student.get("student_major", []):
-			existing_majors.append(m.get("major_name"))
-		if major_check in existing_majors:
-			print(f"Student has already declared {major_check} as a major.")
-			return
-
-		declarationDate = datetime.utcnow()
-
-		studentMajor = {
-			"major_name": major.get("name"),
-			"declaration_date": declarationDate
-		}
-		students.update_one(
-			{"_id": student.get("_id")},
-			{"$push": {"student_major": studentMajor}}
-		)
-		print("Student Major added successfully")
-	except Exception as e:
-		print(e)
+				studentMajor = {
+					"major_name": major.get("name"),
+					"declaration_date": declarationDate
+				}
+				students.update_one(
+					{"_id": student.get("_id")},
+					{"$push": {"student_major": studentMajor}}
+				)
+				print("Student Major added successfully")
+				break
+		except Exception as e:
+			pprint(e)
 
 
 def select_major_student(db):
@@ -277,7 +282,8 @@ def delete_major_student(db):
 
 def list_student_major(db):
 	students = db["students"]
-	all_students = students.find({})
+	all_students = students.find({}).sort([("last_name", pymongo.ASCENDING),
+											("first_name", pymongo.ASCENDING)])
 	for student in all_students:
 		criteria = {
 			'first_name': student.get('first_name'),
@@ -296,46 +302,4 @@ def list_student_major(db):
 			pprint(result)
 			for major in majors:
 				pprint(major)
-
-def add_section_student(db):
-	students = db["students"]
-	sections = db["sections"]
-	student = select_student(db)
-	enrollment = {}
-	while True:
-		try:
-			section = Section.select_section(db)
-			enrollment_type = input("Enter PassFail or LetterGrade (P/L)--> ")
-			if enrollment_type.lower() == "p":
-				applicationDate = datetime.utcnow()
-				enrollment = {'application_date': applicationDate}
-			elif enrollment_type.lower() == 'l':
-				minSatisfactory = input("Enter the Minimum Satisfactory Grade (A, B, C)--> ")
-				enrollment = {'min_satisfactory': minSatisfactory}
-
-			section_info = {
-				"section_id": section.get("_id"),
-				"department_abbreviation": section.get("department_abbreviation"),
-				"course_number": section.get("course_number"),
-				"section_number": section.get("section_number"),
-				"semester": section.get("semester"),
-				"year": section.get("year"),
-				"enrollment": {"enrollment_type": enrollment}
-			}
-			students.update_one(
-				{"_id": student.get("_id")},
-				{"$push": {"sections": section_info}}
-			)
-
-			enrollment = {
-				"student_id": student.get("_id"),
-				"enrollment_type": enrollment
-			}
-			sections.update_one(
-				{"_id": section.get("_id")},
-				{"$push": {"enrollments": enrollment}}
-			)
-			print("Student Section added successfully")
-			break
-		except Exception as e:
-			print(e)
+			print()

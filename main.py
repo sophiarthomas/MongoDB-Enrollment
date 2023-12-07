@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from pprint import pprint
 import getpass
 import certifi
+from datetime import datetime
 from menu_definitions import menu_main, add_menu, delete_menu, list_menu
 import Department
 import Course
@@ -50,8 +51,6 @@ def list_objects(db):
 """DEPARTMENT"""
 def add_department(db):
     Department.add_department(db)
-def select_department(db):
-    Department.select_department(db)
 def delete_department(db):
     Department.delete_department(db)
 def list_department(db):
@@ -70,21 +69,16 @@ def list_course(db):
 """STUDENT"""
 def add_student(db):
     Student.add_student(db)
-def select_student(db):
-    Student.select_student(db)
 def delete_student(db):
     Student.delete_student(db)
 def list_student(db):
     Student.list_student(db)
-def add_major_student(db):
-    Student.add_major_student(db)
+
 
 
 """SECTION"""
 def add_section(db):
     Section.add_section(db)
-def select_section(db):
-    Section.select_section(db)
 def delete_section(db):
     Section.delete_section(db)
 def list_section(db):
@@ -94,12 +88,30 @@ def list_section(db):
 """MAJOR"""
 def add_major(db):
     Major.add_major(db)
-def select_major(db):
-    Major.select_major(db)
 def delete_major(db):
     Major.delete_major(db)
 def list_major(db):
     Major.list_major(db)
+
+
+"""STUDENT MAJOR"""
+def add_major_student(db):
+    Student.add_major_student(db)
+def delete_major_student(db):
+    Student.delete_major_student(db)
+def list_student_major(db):
+    Student.list_student_major(db)
+
+
+"""ENROLLMENT"""
+def add_enrollment(db):
+    Section.add_enrollment(db)
+def list_enrollment(db):
+    Section.list_enrollment(db)
+def delete_enrollment(db):
+    Section.delete_enrollment(db)
+
+
 
 
 def boilerplate(db):
@@ -139,6 +151,7 @@ def boilerplate(db):
         "start_minute": 30
     }
     major = {
+        "department_abbreviation": department.get('abbreviation'),
         "name": 'Computer Science'
     }
     student = {
@@ -146,11 +159,35 @@ def boilerplate(db):
         "last_name": 'Thomas',
         "e_mail": 'sophia@gmail.com'
     }
+    student2 = {
+        "first_name": 'Lucas',
+        "last_name": 'Gonzo',
+        "e_mail": 'lucas@gmail.com'
+    }
+
     db.departments.insert_one(department)
     db.courses.insert_one(course)
     db.sections.insert_one(section)
     db.majors.insert_one(major)
     db.students.insert_one(student)
+    db.students.insert_one(student2)
+    enrollment = {
+        'student_id': student.get("_id"),
+        'enrollment_type': {'min_satisfactory': 'A'}
+    }
+    studentMajor = {
+        "major_name": major.get('name'),
+        "declaration_date": datetime.utcnow()
+    }
+    db.sections.update_one(
+        {"_id": section.get("_id")},
+        {"$push": {"enrollments": enrollment}}
+    )
+    db.students.update_one(
+        {"_id": student.get("_id")},
+		{"$push": {"student_major": studentMajor}}
+    )
+
 
 
 def clear_documents(db):
@@ -195,6 +232,7 @@ def pcoll(banner: str, recs):
     print(banner)
     for rec in recs:
         pprint(rec)
+    print()
 
 
 if __name__ == '__main__':
@@ -216,19 +254,25 @@ if __name__ == '__main__':
     print(db.list_collection_names())
 
     Department.create_department_schema(db)
-    pprint(db.departments.index_information())
+    # pcoll("Department Collection", db.departments.find({}))
+    # pprint(db.departments.index_information())
 
     Course.create_course_schema(db)
-    pprint(db.courses.index_information())
+    # pcoll("Course Collection", db.courses.find({}))
+    # pprint(db.courses.index_information())
 
     Major.create_major_schema(db)
-    pprint(db.majors.index_information())
+    # pcoll("Major Collection", db.majors.find({}))
+    # pprint(db.majors.index_information())
 
     Student.create_student_schema(db)
-    pprint(db.students.index_information())
+    # pcoll("Student Collection", db.students.find({}))
+    # pprint(db.students.index_information())
 
     Section.create_section_schema(db)
-    pprint(db.sections.index_information())
+    # pcoll("Section Collection", db.sections.find({}))
+    # pprint(db.sections.index_information())
+
 
 
     main_action: str = ''

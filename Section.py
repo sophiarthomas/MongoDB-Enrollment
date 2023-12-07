@@ -5,7 +5,6 @@ import Enrollment
 import Student
 from datetime import datetime, timezone, date
 
-
 def create_section_schema(db):
     section_validator = {
          'validator': {
@@ -19,11 +18,15 @@ def create_section_schema(db):
                     '_id': {},
                     'department_abbreviation': {
                         'bsonType': 'string',
-                        'description': 'The name of the department.'
+                        'description': 'The name of the department.',
+                        'minLength': 1,
+                        'maxLength': 6
                     },
                     'course_number': {
                         'bsonType': 'int',
-                        'description': 'A 3-digit number designating a specific course within a department.'
+                        'description': 'A 3-digit number designating a specific course within a department.',
+                        'minimum': 100,
+                        'maximum': 699
                     },
                     'section_number': {
                         'bsonType': 'int',
@@ -92,11 +95,6 @@ def create_section_schema(db):
                                   ('schedule', pymongo.ASCENDING), ('start_hour', pymongo.ASCENDING),
                                   ('start_minute', pymongo.ASCENDING), ('instructor', pymongo.ASCENDING)],
                                  unique=True, name="sections_semester_year_schedule_time_instructor")
-        #issue when adding a new section, student_id takes on null value
-        # db.sections.create_index([('semester', pymongo.ASCENDING), ('year', pymongo.ASCENDING),
-        #                           ('department_abbreviation', pymongo.ASCENDING), ('course_number', pymongo.ASCENDING),
-        #                           ('enrollments.student_id', pymongo.ASCENDING)],
-        #                          unique=True, sparse=True, name="sections_semester_year_department_course_studentId")
     except Exception as e:
         pass
     sections = db["sections"]
@@ -123,14 +121,18 @@ def add_section(db):
     while True:
         try:
             sectionNumber = int(input ("Section number--> "))
-            semester = input("Section semester--> ")
-            schedule = input("Section schedule--> ")
-            year = int(input("Section year--> "))
-            room = int(input("Section room--> "))
-            building = input("Section building--> ")
+            semester = input("Section semester "
+                             "[Fall, Spring, Summer I, Summer II, Summer III, Winter]-->")
+            schedule = input("Section schedule "
+                             "[MW, TuTh, MWF, MWF, F, S]--> ")
+            year = int(input("Section year (1949-2023)--> "))
+            room = int(input("Section room (1-999)--> "))
+            building = input("Section building "
+                             "ANAC, CDC, DC, ECS, EN2, EN3, EN4, "
+                             "EN5, ET, HSCI, NUR, VEC--> ")
             instructor = input("Section instructor-->")
-            startHour = int(input("Start Hour--> "))
-            startMinute = int(input("Start Minute--> "))
+            startHour = int(input("Start Hour (8-19)--> "))
+            startMinute = int(input("Start Minute (0 or 30)--> "))
 
             section = {
                 "department_abbreviation": course.get("department_abbreviation"),
@@ -154,7 +156,8 @@ def add_section(db):
             print("Section added successfully.")
             break
         except Exception as e:
-            print("An error occurred:", str(e))
+            print("An error occurred:")
+            pprint(e)
             print("Please re-enter section information.")
 
 
@@ -206,14 +209,15 @@ def delete_section(db):
 
 
 def list_section(db):
-    sections = db["sections"].find({}).sort("_id", pymongo.ASCENDING)
+    sections = db["sections"].find({}).sort([("course_number", pymongo.ASCENDING),
+                                             ("section_number", pymongo.ASCENDING)])
     for section in sections:
         pprint(section)
 
 
 ############### Enrollment Functions ###############
 
-def add_student_section(db):
+def add_enrollment(db):
     """
     Adding a student and enrollment_type to the enrollments array in sections
     Adding section and enrollment information to the sections array in students
@@ -221,7 +225,6 @@ def add_student_section(db):
     :param db:
     :return:
     """
-    print("adding a student to a section ")
     sections = db["sections"]
     students = db["students"]
     section = select_section(db)
@@ -229,15 +232,18 @@ def add_student_section(db):
     enrollment_type = {}
     while True:
         student = Student.select_student(db)
-        exists = sections.find_one({
+        exists_student_course_semester_year = sections.find_one({
             "semester": section.get("semester"),
             "year": section.get("year"),
             "department_abbreviation": section.get("department_abbreviation"),
             "course_number": section.get("course_number"),
             "enrollments.student_id": student.get("_id")
-        }
-        )
-        if not exists:
+        })
+        exists_student_section = sections.find_one({
+            "_id": section.get("_id"),
+            "enrollments.student_id": student.get("_id")
+        })
+        if not exists_student_course_semester_year and not exists_student_section:
             try:
                 enrollmentType = input("Enter PassFail or LetterGrade (P/L)--> ")
                 if enrollmentType.lower() == "p":
@@ -275,12 +281,14 @@ def add_student_section(db):
                 break
             except Exception as e:
                 pprint(e)
-        else:
-            print("That student is already enrolled in a section of the same course during the same semester. Try again.")
+        elif exists_student_section:
+            print("That student is already enrolled in that section. Try again.")
+        elif exists_student_course_semester_year:
+            print("That student is either already enrolled in a section of the same course during the same semester. Try again.")
 
 
 
-def select_student_section(db):
+def select_enrollment(db):
     collection = db["sections"]
     found: bool = False
     #selecting a section
@@ -294,15 +302,15 @@ def select_student_section(db):
                                                             "enrollments": {"student_id": student.get("_id")}})
         found = enrollment_count == 1
         if not found:
-            print("No enrollment found by that pair of section and student. Try again")
+            print("No enrollment found by that pair of section and student. Try again.")
     #finding the section with the matching enrollment
     found_enrollment_section = collection.find_one({"_id": section.get("_id"),
                                             "enrollments": {"student_id": student.get("_id")}})
     return found_enrollment_section
 
 
-def delete_student_section(db):
-    enrollment_section = select_student_section(db)
+def delete_enrollment(db):
+    enrollment_section = select_enrollment(db)
     if enrollment_section:
         section_id = enrollment_section["_id"]
         student_id = enrollment_section["enrollments"][0]["student_id"]
@@ -322,7 +330,8 @@ def delete_student_section(db):
 
 
 def list_enrollment(db):
-    all_sections = db.sections.find({})
+    all_sections = db.sections.find({}).sort([("course_number", pymongo.ASCENDING),
+                                              ("section_number", pymongo.ASCENDING)])
     for section in all_sections:
         criteria = {
             'department_abbreviation': section.get('department_abbreviation', ''),
@@ -346,3 +355,4 @@ def list_enrollment(db):
             pprint(result)
             for enrollment in enrollments:
                 pprint(enrollment)
+            print()

@@ -46,6 +46,7 @@ def create_course_schema(db):
                         'items': {
                             'bsonType': 'object',
                             'required': ['section_id', 'section_number', 'semester', 'year'],
+                            'additionalProperties': False,
                             'properties': {
                                 'section_id': {
                                     'bsonType': 'objectId',
@@ -53,15 +54,19 @@ def create_course_schema(db):
                                 },
                                 'section_number': {
                                     'bsonType': 'int',
-                                    'description': 'Two-digit numerical value that correlates to the section'
+                                    'description': 'Two-digit numerical value that correlates to the section',
+                                    'minimum': 1
                                 },
                                 'semester': {
                                     'bsonType': 'string',
-                                    'description': 'Time of year that the section takes place '
+                                    'description': 'Time of year that the section takes place',
+                                    'enum': ['Fall', 'Spring', 'Summer I', 'Summer II', 'Summer III', 'Winter']
                                 },
                                 'year': {
                                     'bsonType': 'int',
-                                    'description': 'year that the section takes place'
+                                    'description': 'year that the section takes place',
+                                    "minimum": 1949,
+                                    'maximum': 2023
                                 }
                             }
                         }
@@ -90,8 +95,8 @@ def add_course(db):
     while True:
         try:
             courseName = input("Course Name--> ")
-            courseNumber = int(input("Course Number--> "))
-            units = int(input("Course Units--> "))
+            courseNumber = int(input("Course Number (100-699) --> "))
+            units = int(input("Course Units (1-5) --> "))
             description = input("Course Description--> ")
 
             course = {

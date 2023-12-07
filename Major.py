@@ -14,7 +14,7 @@ def create_major_schema(db):
 					'_id': {},
 					'department_abbreviation': {
 						'bsonType': 'string',
-						'description': 'embedded department abbreviation the course falls under',
+						'description': 'shortened identifiable name of the department',
 						'maxLength': 6
 					},
 					'name': {
@@ -56,7 +56,8 @@ def add_major(db):
 			print("Major added successfully.")
 			break
 		except Exception as e:
-			print("An error occurred:", str(e))
+			print("An error occurred:")
+			pprint(e)
 			print("Please re-enter major information.")
 
 
