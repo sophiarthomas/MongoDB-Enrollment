@@ -40,6 +40,9 @@ def create_student_schema(db):
 						'items': {
 							'bsonType': 'object',
 							'properties': {
+								'major_id': {
+									'bsonType': 'objectId'
+								},
 								'major_name': {
 									'bsonType': 'string',
 									'description': 'name of the major the student has declared'
@@ -50,7 +53,7 @@ def create_student_schema(db):
 								}
 							},
 							'additionalProperties':False,
-							'required': ['major_name', 'declaration_date']
+							'required': ['major_id', 'major_name', 'declaration_date']
 						},
 						'maxItems': 5
 					},
@@ -211,15 +214,10 @@ def list_student(db):
 
 
 def add_major_student(db):
-	"""
-	from what i can tell this function will override the last major declaration
-	if the student and major are the same, but a check should be made before students.update_one
-	is written
-	"""
 	students = db["students"]
-	student = select_student(db)
 	while True:
 		try:
+			student = select_student(db)
 			major = Major.select_major(db)
 
 			# check if the entered major and student combination are already declared
@@ -234,6 +232,7 @@ def add_major_student(db):
 				declarationDate = datetime.utcnow()
 
 				studentMajor = {
+					"major_id": major.get("_id"),
 					"major_name": major.get("name"),
 					"declaration_date": declarationDate
 				}

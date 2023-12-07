@@ -176,6 +176,7 @@ def boilerplate(db):
         'enrollment_type': {'min_satisfactory': 'A'}
     }
     studentMajor = {
+        "major_id": major.get("_id"),
         "major_name": major.get('name'),
         "declaration_date": datetime.utcnow()
     }
